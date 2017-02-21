@@ -9,6 +9,16 @@
                 "updated-column": "T_TIMESTAMP",
                 "primary-key": ["T_IDENTITY", "T_INT"]
             }
+        },
+        "sinks": {
+            "everything": {
+                "table": "everything1",
+                "primary-key": "T_IDENTITY",
+                "truncate_table_on_first_run": false,
+                "timestamp": "T_TIMESTAMP",
+                "whitelist": ["T_USE_ME", "T_DROP_ME"],
+                "blacklist": ["T_DROP_ME"]
+            }
         }
     }
 }

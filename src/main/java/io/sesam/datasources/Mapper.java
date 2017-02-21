@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.google.gson.stream.JsonReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,10 +47,22 @@ public class Mapper implements AutoCloseable {
         return system != null && system.isValidSource(sourceId);
     }
 
+    public boolean isValidSink(String systemId, String sinkId) {
+        DataSystem system = this.systems.get(systemId);
+        return system != null && system.isValidSink(sinkId);
+    }
+
     public void writeEntities(JsonWriter jw, String systemId, String sourceId, String since) throws SQLException, IOException {
         DataSystem system = this.systems.get(systemId);
         assert system != null;
         system.writeEntities(jw, sourceId, since);
+    }
+
+
+    public void readEntities(JsonReader jr, String systemId, String sinkId, boolean isFull) throws SQLException, IOException {
+        DataSystem system = this.systems.get(systemId);
+        assert system != null;
+        system.readEntities(jr, sinkId, isFull);
     }
     
     public static Mapper load(String filename) throws Exception {
@@ -61,6 +74,7 @@ public class Mapper implements AutoCloseable {
             for (Entry<String, JsonElement> e : root.entrySet()) {
                 String systemId = e.getKey();
                 DataSystem system = newSystem(systemId, e.getValue());
+                system.configure();
                 systems.put(systemId, system);
             }
             return new Mapper(systems);
@@ -77,6 +91,7 @@ public class Mapper implements AutoCloseable {
         String jdbcUrl = getStringValue(systemObj, "jdbc-url");
         String username = getStringValue(systemObj, "username", null);
         String password = getStringValue(systemObj, "password", null);
+
         HikariConfig config = new HikariConfig();
         config.setInitializationFailFast(false);
         config.setConnectionTimeout(5000);
@@ -115,7 +130,35 @@ public class Mapper implements AutoCloseable {
                 }
             }
         }
-        return new DataSystem(ds, sources);
+
+        // sinks
+        Map<String,Sink> sinks = new HashMap<>();
+        if (systemObj.has("sinks")) {
+            JsonObject sourcesObj = systemObj.getAsJsonObject("sinks");
+            for (Entry<String, JsonElement> e : sourcesObj.entrySet()) {
+                String sinkId = e.getKey();
+                JsonObject sinkObj = e.getValue().getAsJsonObject();
+                String table = getStringValue(sinkObj, "table");
+                JsonElement pkElem = sinkObj.get("primary-key");
+                List<String> primaryKeys = new ArrayList<>();
+                if (pkElem != null) {
+                    if (pkElem.isJsonArray()) {
+                        for (JsonElement pke : pkElem.getAsJsonArray()) {
+                            primaryKeys.add(pke.getAsString());
+                        }
+                    } else {
+                        primaryKeys.add(pkElem.getAsString());
+                    }
+                }
+                List<String> whitelist = getStringValues(sinkObj, "whitelist");
+                List<String> blacklist = getStringValues(sinkObj, "blacklist");
+                String timestamp = getStringValue(sinkObj, "timestamp", "sesam-timestamp");
+                boolean truncateOnFirstRun = getBooleanValue(sinkObj, "truncate_table_on_first_run", false);
+
+                sinks.put(sinkId, new MatcherSink(sinkId, table, primaryKeys, truncateOnFirstRun, whitelist, blacklist, timestamp));
+            }
+        }
+        return new DataSystem(ds, sources, sinks);
     }
 
     private static String getStringValue(JsonObject jo, String key) {
@@ -134,4 +177,21 @@ public class Mapper implements AutoCloseable {
         }
     }
 
+    private static List<String> getStringValues(JsonObject jo, String key) {
+        List<String> values = new ArrayList<>();
+        if (jo.has(key)) {
+            for (JsonElement pke : jo.getAsJsonArray(key)) {
+                values.add(pke.getAsString());
+            }
+        }
+        return values;
+    }
+
+    private static boolean getBooleanValue(JsonObject jo, String key, boolean defaultValue) {
+        if (jo.has(key)) {
+            return jo.getAsJsonPrimitive(key).getAsBoolean();
+        } else {
+            return defaultValue;
+        }
+    }
 }

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
+import com.google.gson.stream.JsonReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,10 +31,12 @@ public class DataSystem implements AutoCloseable {
 
     private final HikariDataSource ds;
     private final Map<String, Source> sources;
+    private final Map<String, Sink> sinks;
 
-    public DataSystem(HikariDataSource ds, Map<String,Source> sources) {
+    public DataSystem(HikariDataSource ds, Map<String,Source> sources, Map<String, Sink> sinks) {
         this.ds = ds;
         this.sources = sources;
+        this.sinks = sinks;
     }
 
     @Override
@@ -303,8 +306,39 @@ public class DataSystem implements AutoCloseable {
         }
     }
 
+
+    public void readEntities(JsonReader jr, String sinkId, boolean isFull) throws SQLException, IOException {
+        // TODO read json entities and write to sink according to mapping rules
+        Sink sink = this.sinks.get(sinkId);
+        if (sink == null) {
+            throw new RuntimeException("Unknown sink: " + sinkId);
+        }
+        Connection conn = ds.getConnection();
+        conn.setAutoCommit(false);
+        try {
+            sink.readEntities(jr, conn, isFull);
+        } finally {
+            conn.close();
+        }
+    }
+
     public boolean isValidSource(String sourceId) {
         return sources.containsKey(sourceId);
     }
 
+    public boolean isValidSink(String sinkId) {
+        return sinks.containsKey(sinkId);
+    }
+
+    public void configure() throws SQLException {
+        Connection connection = this.ds.getConnection();
+        try {
+            for (Map.Entry<String, Sink> entry : this.sinks.entrySet()) {
+                log.debug("Configuring sink: " + entry.getKey());
+                entry.getValue().configure(connection);
+            }
+        } finally {
+            connection.close();
+        }
+    }
 }
