@@ -58,7 +58,7 @@ public class App {
             String sinkId = req.params("sink");
             boolean isFull = Boolean.parseBoolean(req.queryParams("is_full"));
 
-            if (!mapper.isValidSource(systemId, sinkId)) {
+            if (!mapper.isValidSink(systemId, sinkId)) {
                 Spark.halt(404, "Unknown system/sink pair.\n");
             }
             try {
