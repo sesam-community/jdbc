@@ -10,7 +10,7 @@ services:
 
 after_success:
   - if [ "$TRAVIS_BRANCH" == "master" ]; then
-    docker build -t sesamcommunity/jdbc .;
+    docker build -t sesamcommunity/database-jdbc .;
     docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
-    docker push sesamcommunity/jdbc:latest;
+    docker push sesamcommunity/database-jdbc:latest;
     fi
