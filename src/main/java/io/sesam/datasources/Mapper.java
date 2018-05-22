@@ -81,6 +81,21 @@ public class Mapper implements AutoCloseable {
         }
     }
 
+    public static Mapper jsonString(String json) throws Exception {
+        Gson gson = new Gson();
+        JsonObject root = gson.fromJson(json, JsonObject.class);
+
+        Map<String,DataSystem> systems = new HashMap<>();
+        for (Entry<String, JsonElement> e : root.entrySet()) {
+            String systemId = e.getKey();
+            DataSystem system = newSystem(systemId, e.getValue());
+            system.configure();
+            systems.put(systemId, system);
+        }
+        return new Mapper(systems);
+
+    }
+
     private static DataSystem newSystem(String systemId, JsonElement systemElem) {
         if (!systemElem.isJsonObject()) {
             throw new RuntimeException("Invalid configuration for system '" + systemId + "': " + systemElem); 

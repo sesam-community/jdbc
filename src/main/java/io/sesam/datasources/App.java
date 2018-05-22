@@ -19,10 +19,17 @@ public class App {
 
     // TODO load config from environment variable or get it posted
     public static void main(String[] args) throws Exception {
-        String configurationFile = args[0];
-        log.info("Loading configuration from: " + configurationFile);
-        Mapper mapper = Mapper.load(configurationFile);
-        
+        Mapper mapper;
+        if (System.getenv("config") != null) {
+            String configurationFile = System.getenv("config");
+            log.info("config parameter defined loading config from environment variable");
+             mapper = Mapper.jsonString(configurationFile);
+        }
+        else {
+            String configurationFile = args[0];
+            log.info("Loading configuration from: " + configurationFile);
+             mapper = Mapper.load(configurationFile);
+        }
         Runtime.getRuntime().addShutdownHook(new Thread() {
             @Override
             public void run() {
